@@ -1,0 +1,24 @@
+{
+  "name": "financial_service",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "financial_service": "file:",
+    "jsonwebtoken": "^9.0.2",
+    "node-cron": "^4.2.1",
+    "pdf-lib": "^1.17.1",
+    "pdfkit": "^0.17.1",
+    "sharp": "^0.34.3"
+  }
+}
