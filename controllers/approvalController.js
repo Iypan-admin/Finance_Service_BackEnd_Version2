@@ -114,9 +114,10 @@ const approvePayment = async (req, res) => {
         }
 
         // 5️⃣ Generate next EMI due date for EMI payments
+        let nextDueDate = null;
         if (payment_type === "emi") {
             // Calculate next due date based on current payment date (today)
-            const nextDueDate = new Date(today);
+            nextDueDate = new Date(today);
             nextDueDate.setDate(nextDueDate.getDate() + 30); // Next due date is 30 days from today
 
             // Update the payment record with next due date
@@ -133,6 +134,69 @@ const approvePayment = async (req, res) => {
             }
 
             console.log(`✅ Next EMI due date set to: ${nextDueDate.toISOString().split("T")[0]} for payment ${payment_id}`);
+        }
+
+        // 6️⃣ Create notification for student about payment approval
+        try {
+            // Get student_id from enrollment with batch and course details
+            const { data: enrollmentData, error: enrollmentFetchError } = await supabaseAdmin
+                .from("enrollment")
+                .select(`
+                    student,
+                    batch:batches(
+                        batch_name,
+                        course:courses(course_name)
+                    )
+                `)
+                .eq("enrollment_id", enrollment_id)
+                .single();
+
+            if (!enrollmentFetchError && enrollmentData && enrollmentData.student) {
+                const studentId = enrollmentData.student;
+                const batchName = enrollmentData.batch?.batch_name || "your course";
+                const courseName = enrollmentData.batch?.course?.course_name || "course";
+
+                // Create notification message based on payment type
+                let notificationMessage = "";
+                
+                if (payment_type === "full") {
+                    notificationMessage = `Your payment has been approved! 🎉\n\nCourse: ${courseName}\nBatch: ${batchName}\n\nYour enrollment is now active with lifelong access.`;
+                } else if (payment_type === "emi") {
+                    if (isFinalEMI) {
+                        notificationMessage = `Your payment has been approved! 🎉\n\nCourse: ${courseName}\nBatch: ${batchName}\n\nCongratulations! All EMI payments completed. Your enrollment is now active with lifelong access.`;
+                    } else {
+                        const nextDueDateStr = nextDueDate ? nextDueDate.toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            year: 'numeric'
+                        }) : "N/A";
+                        notificationMessage = `Your payment has been approved! 🎉\n\nCourse: ${courseName}\nBatch: ${batchName}\n\nNext EMI Due: ${nextDueDateStr}`;
+                    }
+                } else {
+                    notificationMessage = `Your payment has been approved! 🎉\n\nCourse: ${courseName}\nBatch: ${batchName}\n\nYour enrollment is now active.`;
+                }
+
+                // Insert notification into notifications table using supabaseAdmin
+                const { error: notifError } = await supabaseAdmin
+                    .from("notifications")
+                    .insert({
+                        student: studentId,
+                        message: notificationMessage,
+                        is_read: false
+                    });
+
+                if (notifError) {
+                    console.error("❌ Failed to create payment approval notification:", notifError);
+                    // Don't fail the approval if notification creation fails
+                } else {
+                    console.log(`✅ Payment approval notification created for student ${studentId}`);
+                }
+            } else {
+                console.error("❌ Could not fetch enrollment data for notification:", enrollmentFetchError);
+            }
+        } catch (notifErr) {
+            console.error("❌ Error creating payment approval notification:", notifErr);
+            // Don't fail the approval if notification creation fails
         }
 
         res.json({ message: "Payment approved successfully" });
@@ -232,6 +296,129 @@ const editPaymentDuration = async (req, res) => {
     } catch (err) {
         console.error('Error editing payment duration:', err);
         res.status(500).json({ success: false, error: "Internal server error" });
+    }
+};
+
+// ✅ Get Student Payment Details by Registration Number and Batch ID
+const getStudentPaymentDetails = async (req, res) => {
+    try {
+        const { registrationNumber, batchId } = req.params;
+
+        if (!registrationNumber || !batchId) {
+            return res.status(400).json({ 
+                success: false, 
+                error: "Registration number and batch ID are required" 
+            });
+        }
+
+        // First, get the student_id from registration_number
+        const { data: studentData, error: studentError } = await supabase
+            .from('students')
+            .select('student_id, name, email, phone')
+            .eq('registration_number', registrationNumber)
+            .single();
+
+        if (studentError || !studentData) {
+            return res.status(404).json({ 
+                success: false, 
+                error: "Student not found" 
+            });
+        }
+
+        const studentId = studentData.student_id;
+
+        // Get the enrollment_id for this student and batch
+        const { data: enrollmentData, error: enrollmentError } = await supabase
+            .from('enrollment')
+            .select('enrollment_id')
+            .eq('batch', batchId)
+            .eq('student', studentId)
+            .single();
+
+        if (enrollmentError || !enrollmentData) {
+            return res.status(404).json({ 
+                success: false, 
+                error: "Student not enrolled in this batch" 
+            });
+        }
+
+        const enrollmentId = enrollmentData.enrollment_id;
+
+        // Get payment data for this enrollment
+        const { data: paymentData, error: paymentError } = await supabase
+            .from('student_course_payment')
+            .select('*')
+            .eq('enrollment_id', enrollmentId)
+            .order('created_at', { ascending: false });
+
+        if (paymentError) {
+            console.error('Error fetching payment data:', paymentError);
+            return res.status(500).json({ 
+                success: false, 
+                error: "Error fetching payment data" 
+            });
+        }
+
+        // Get payment lock for this student and batch (if exists)
+        const { data: lockData, error: lockError } = await supabase
+            .from('student_payment_lock')
+            .select('*')
+            .eq('register_number', registrationNumber)
+            .eq('batch_id', batchId)
+            .single();
+
+        if (lockError && lockError.code !== 'PGRST116') { // PGRST116 = no rows found
+            console.error('Error fetching payment lock:', lockError);
+        }
+
+        // Transform data
+        const transformedData = {
+            registration_number: registrationNumber,
+            batch_id: batchId,
+            payment_type: lockData?.payment_type || (paymentData && paymentData.length > 0 ? paymentData[0].payment_type : null), // Current payment type (full/emi)
+            locked_at: lockData?.locked_at || null,
+            payment_history: (paymentData || []).map(payment => ({
+                id: payment.id,
+                payment_id: payment.payment_id,
+                order_id: payment.order_id,
+                bank_rrn: payment.bank_rrn,
+                course_name: payment.course_name,
+                original_fees: payment.original_fees,
+                discount_percentage: payment.discount_percentage,
+                final_fees: payment.final_fees,
+                payment_type: payment.payment_type,
+                emi_duration: payment.emi_duration,
+                current_emi: payment.current_emi,
+                status: payment.status,
+                approved_at: payment.approved_at,
+                next_emi_due_date: payment.next_emi_due_date,
+                created_at: payment.created_at
+            })),
+            student_info: {
+                name: studentData.name,
+                email: studentData.email,
+                contact: studentData.phone
+            },
+            // Calculate EMI summary if payment_type is EMI
+            emi_summary: paymentData && paymentData.length > 0 && paymentData[0].payment_type === 'emi' ? {
+                total_emis: paymentData[0].emi_duration || 0,
+                paid_emis: paymentData[0].current_emi || 0,
+                remaining_emis: (paymentData[0].emi_duration || 0) - (paymentData[0].current_emi || 0),
+                next_due_date: paymentData[0].next_emi_due_date || null
+            } : null
+        };
+
+        res.status(200).json({ 
+            success: true, 
+            data: transformedData 
+        });
+
+    } catch (err) {
+        console.error('Error in getStudentPaymentDetails:', err);
+        res.status(500).json({ 
+            success: false, 
+            error: "Internal server error" 
+        });
     }
 };
 
@@ -336,4 +523,10 @@ const getCenterPayments = async (req, res) => {
     }
 };
 
-module.exports = { approvePayment, getAllPayments, editPaymentDuration, getCenterPayments };
+module.exports = { 
+    approvePayment, 
+    getAllPayments, 
+    editPaymentDuration, 
+    getCenterPayments,
+    getStudentPaymentDetails
+};
