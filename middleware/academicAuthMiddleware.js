@@ -16,9 +16,16 @@ const academicAuthMiddleware = (req, res, next) => {
     try {
         const decoded = jwt.verify(token.split(" ")[1], process.env.SECRET_KEY);
 
-        // Allow academic and financial roles
-        if (!["academic", "financial"].includes(decoded.role)) {
-            return res.status(403).json({ error: "Access denied, you are not authorized" });
+        // Allow academic, financial, admin, and manager roles
+        const userRole = (decoded.role || "").toLowerCase();
+        const allowedRoles = ["academic", "financial", "admin", "manager"];
+        
+        if (!allowedRoles.includes(userRole)) {
+            console.error(`Forbidden: Role "${decoded.role}" not in allowed list:`, allowedRoles);
+            return res.status(403).json({ 
+                error: `Access denied (AcademicAuth): role "${decoded.role}" is not authorized.`,
+                receivedRole: decoded.role 
+            });
         }
 
         req.user = decoded;

@@ -49,7 +49,7 @@ const approvePayment = async (req, res) => {
         if (payment_type === "full") {
             // Full payment → permanent enrollment (lifelong access)
             isFullPayment = true;
-            console.log(`✅ Full payment detected - marking enrollment as permanent (lifelong access)`);
+
             // Set end_date to a far future date (optional, since is_permanent handles it)
             newEndDate = new Date();
             newEndDate.setFullYear(newEndDate.getFullYear() + 100); // Far future date
@@ -57,7 +57,7 @@ const approvePayment = async (req, res) => {
             // Check if this is the final EMI payment
             if (current_emi && emi_duration && current_emi >= emi_duration) {
                 isFinalEMI = true;
-                console.log(`✅ Final EMI detected: current_emi=${current_emi}, emi_duration=${emi_duration}`);
+
                 
                 // For final EMI: set end_date to far future (no expiry notifications needed)
                 newEndDate = new Date();
@@ -96,9 +96,7 @@ const approvePayment = async (req, res) => {
         if (isFullPayment || isFinalEMI) {
             enrollmentUpdateData.is_permanent = true;
             if (isFullPayment) {
-                console.log(`✅ Marking enrollment ${enrollment_id} as permanent (full payment - lifelong access)`);
             } else {
-                console.log(`✅ Marking enrollment ${enrollment_id} as permanent (final EMI completed)`);
             }
         }
 
@@ -133,7 +131,7 @@ const approvePayment = async (req, res) => {
                 // Don't fail the approval, just log the error
             }
 
-            console.log(`✅ Next EMI due date set to: ${nextDueDate.toISOString().split("T")[0]} for payment ${payment_id}`);
+
         }
 
         // 6️⃣ Create notification for student about payment approval
@@ -189,7 +187,7 @@ const approvePayment = async (req, res) => {
                     console.error("❌ Failed to create payment approval notification:", notifError);
                     // Don't fail the approval if notification creation fails
                 } else {
-                    console.log(`✅ Payment approval notification created for student ${studentId}`);
+
                 }
             } else {
                 console.error("❌ Could not fetch enrollment data for notification:", enrollmentFetchError);

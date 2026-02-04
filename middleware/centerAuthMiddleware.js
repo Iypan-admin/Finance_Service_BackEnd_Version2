@@ -12,8 +12,9 @@ const centerAuthMiddleware = (req, res, next) => {
         const decoded = jwt.verify(token.split(" ")[1], process.env.SECRET_KEY);
 
         // Allow center, financial, admin, and manager roles
-        if (!["center", "financial", "admin", "manager"].includes(decoded.role)) {
-            return res.status(403).json({ error: "Access denied, you are not authorized" });
+        const userRole = (decoded.role || "").toLowerCase();
+        if (!["center", "financial", "admin", "manager"].includes(userRole)) {
+            return res.status(403).json({ error: `Access denied (CenterAuth): role ${decoded.role} not authorized` });
         }
 
         req.user = decoded;

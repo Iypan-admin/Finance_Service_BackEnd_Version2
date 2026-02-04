@@ -286,19 +286,7 @@ const getCyclePayments = async (req, res) => {
             const isReferredByUs = isReferred && referredByCenterId === centerId;
 
             // Debug logging for first few payments
-            if (allPayments.indexOf(payment) < 5) {
-                console.log('getCyclePayments Debug:', {
-                    payment_id: payment.payment_id,
-                    student_name: student?.name,
-                    student_center: studentCenterId,
-                    isDirectStudent,
-                    isReferred,
-                    referredByCenterId,
-                    currentCenterId: centerId,
-                    isReferredByUs,
-                    shouldInclude: isDirectStudent || isReferredByUs
-                });
-            }
+
 
             if (!isDirectStudent && !isReferredByUs) return false;
 
@@ -322,7 +310,7 @@ const getCyclePayments = async (req, res) => {
             const referredByCenterId = student?.referred_by_center;
             return isReferred && referredByCenterId === centerId;
         }).length;
-        console.log(`getCyclePayments Summary - Center: ${centerId}, Total: ${cyclePayments.length}, Direct: ${directCount}, Referred: ${referredCount}`);
+
 
         // Check which payments have already been invoiced
         const { data: existingInvoiceItems } = await supabase
@@ -528,19 +516,7 @@ const generateInvoice = async (req, res) => {
             const isReferredByUs = isReferred && referredByCenterId === centerId;
 
             // Debug logging for first few payments
-            if (allPayments.indexOf(payment) < 5) {
-                console.log('Payment Debug:', {
-                    payment_id: payment.payment_id,
-                    student_name: student?.name,
-                    student_center: studentCenterId,
-                    isDirectStudent,
-                    isReferred,
-                    referredByCenterId,
-                    currentCenterId: centerId,
-                    isReferredByUs,
-                    shouldInclude: isDirectStudent || isReferredByUs
-                });
-            }
+
 
             if (!isDirectStudent && !isReferredByUs) return false;
 
@@ -559,7 +535,7 @@ const generateInvoice = async (req, res) => {
             const referredByCenterId = student?.referred_by_center;
             return isReferred && referredByCenterId === centerId;
         }).length;
-        console.log(`Invoice Generation Summary - Center: ${centerId}, Total: ${cyclePayments.length}, Direct: ${directCount}, Referred: ${referredCount}`);
+
 
         // Check which payments have already been invoiced
         const { data: existingInvoiceItems } = await supabase

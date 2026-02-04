@@ -7,6 +7,7 @@ const elitePaymentRoutes = require("./routes/elitePaymentRoutes");
 const giveawayRoutes = require("./routes/giveawayRoutes");
 const cardRoutes = require("./routes/cardRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
+const revenueRoutes = require("./routes/revenueRoutes");
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ app.use("/api/financial", financeCardsRoutes);
 app.use("/api/financial", elitePaymentRoutes);
 app.use("/api/financial", giveawayRoutes);
 app.use("/api/financial/invoices", invoiceRoutes);
+app.use("/api/financial", revenueRoutes);
 app.use("/card", cardRoutes);
 
 const PORT = process.env.PORT || 3007;

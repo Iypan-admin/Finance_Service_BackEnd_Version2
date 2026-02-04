@@ -11,8 +11,9 @@ const authMiddleware = (req, res, next) => {
     try {
         const decoded = jwt.verify(token.split(" ")[1], process.env.SECRET_KEY);
 
-        if (decoded.role !== "financial") {
-            return res.status(403).json({ error: "Access denied, you are not authorized" });
+        const role = decoded.role ? decoded.role.toLowerCase() : "";
+        if (!["financial", "admin", "manager"].includes(role)) {
+            return res.status(403).json({ error: `Access denied (FinanceAuth): role ${decoded.role} not authorized` });
         }
 
         req.user = decoded;
